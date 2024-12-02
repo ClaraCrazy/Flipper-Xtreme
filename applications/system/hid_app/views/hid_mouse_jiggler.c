@@ -1,6 +1,7 @@
 #include "hid_mouse_jiggler.h"
 #include <gui/elements.h>
 #include "../hid.h"
+#include <stdlib.h>
 
 #include "hid_icons.h"
 
@@ -20,7 +21,7 @@ typedef struct {
     HidTransport transport;
 } HidMouseJigglerModel;
 
-const int intervals[6] = {500, 2000, 5000, 10000, 30000, 60000};
+const int intervals[6] = {15000, 30000, 60000, 120000, 180000, 250000};
 
 static void hid_mouse_jiggler_draw_callback(Canvas* canvas, void* context) {
     furi_assert(context);
@@ -80,10 +81,19 @@ static void hid_mouse_jiggler_timer_callback(void* context) {
         {
             if(model->running) {
                 model->counter++;
+                //Randomised mouse movement
+                int MOUSE_MOVE_MAX = 50;
+                int mouse_move_x = (rand() % (2 * MOUSE_MOVE_MAX + 1)) - MOUSE_MOVE_MAX;
+                int mouse_move_y = (rand() % (2 * MOUSE_MOVE_MAX + 1)) - MOUSE_MOVE_MAX;
+                
                 hid_hal_mouse_move(
                     hid_mouse_jiggler->hid,
-                    (model->counter % 2 == 0) ? MOUSE_MOVE_SHORT : -MOUSE_MOVE_SHORT,
-                    0);
+                    mouse_move_x,
+                    mouse_move_y);
+                //Random Interval between 1250ms and the chosen interval
+                int random_interval = (rand() % intervals[model->interval_idx]) + 1250;
+                furi_timer_stop(hid_mouse_jiggler->timer);
+                furi_timer_start(hid_mouse_jiggler->timer, random_interval);
             }
         },
         false);
@@ -110,7 +120,10 @@ static bool hid_mouse_jiggler_input_callback(InputEvent* event, void* context) {
                 if(model->running) {
                     furi_timer_stop(hid_mouse_jiggler->timer);
                     furi_timer_start(hid_mouse_jiggler->timer, intervals[model->interval_idx]);
-                };
+                } else {
+                    // Stopping the timer when jiggler isn't running
+                    furi_timer_stop(hid_mouse_jiggler->timer);
+                }
                 consumed = true;
             }
             if(event->type == InputTypePress && event->key == InputKeyRight && !model->running &&
